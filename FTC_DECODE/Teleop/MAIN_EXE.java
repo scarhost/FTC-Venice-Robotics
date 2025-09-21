@@ -46,10 +46,11 @@ public class MAIN_EXE extends OpMode {
         back_right.setDirection(DcMotor.Direction.REVERSE);
 
         // your original choice: coast
-        front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
     }
 
     @Override

@@ -20,6 +20,9 @@ public class Encoder_Auto_Tuner extends LinearOpMode {
     private static final double MAX_POWER           = 0.6;
     private static final double TIMEOUT_S_PER_FOOT  = 2.5;
 
+    // stop when we’re “close enough” to target (ticks)
+    private static final int POS_TOL_TICKS = 10;
+
     @Override
     public void runOpMode() {
         // map hardware
@@ -48,16 +51,16 @@ public class Encoder_Auto_Tuner extends LinearOpMode {
         if (isStopRequested()) return;
 
         // === Test sequence ===
-        driveInches(24, MAX_POWER, getTimeout(24));   // forward 24"
+        driveInches(24,  MAX_POWER, getTimeout(24));   // forward 24"
         sleep(250);
 
-        strafeInches(24, MAX_POWER, getTimeout(24));  // strafe right 24"
+        strafeInches(24, MAX_POWER, getTimeout(24));   // strafe right 24"
         sleep(250);
 
-        turnByEncoders(90, MAX_POWER, 2.5);           // turn ~90° right
+        turnByEncoders(90, MAX_POWER, 2.5);            // turn ~90° right
         sleep(250);
 
-        driveInches(-24, MAX_POWER, getTimeout(24));  // back 24"
+        driveInches(-24, MAX_POWER, getTimeout(24));   // back 24"
 
         telemetry.addLine("Sequence complete ✅");
         telemetry.update();
@@ -77,7 +80,9 @@ public class Encoder_Auto_Tuner extends LinearOpMode {
         long start = now();
         power = Math.min(Math.abs(power), 1.0);
 
-        while (opModeIsActive() && anyBusy() && elapsedS(start) < timeoutS) {
+        while (opModeIsActive()
+                && !allWithin(flT, frT, blT, brT, POS_TOL_TICKS)
+                && elapsedS(start) < timeoutS) {
             setAllPower(power);
             showTelemetry("Drive", flT, frT, blT, brT);
         }
@@ -96,7 +101,9 @@ public class Encoder_Auto_Tuner extends LinearOpMode {
         long start = now();
         power = Math.min(Math.abs(power), 1.0);
 
-        while (opModeIsActive() && anyBusy() && elapsedS(start) < timeoutS) {
+        while (opModeIsActive()
+                && !allWithin(flT, frT, blT, brT, POS_TOL_TICKS)
+                && elapsedS(start) < timeoutS) {
             setAllPower(power);
             showTelemetry("Strafe", flT, frT, blT, brT);
         }
@@ -118,7 +125,9 @@ public class Encoder_Auto_Tuner extends LinearOpMode {
         long start = now();
         power = Math.min(Math.abs(power), 1.0);
 
-        while (opModeIsActive() && anyBusy() && elapsedS(start) < timeoutS) {
+        while (opModeIsActive()
+                && !allWithin(flT, frT, blT, brT, POS_TOL_TICKS)
+                && elapsedS(start) < timeoutS) {
             setAllPower(power);
             showTelemetry("Turn", flT, frT, blT, brT);
         }
@@ -165,8 +174,20 @@ public class Encoder_Auto_Tuner extends LinearOpMode {
 
     private void stopAll() { setAllPower(0); }
 
-    private boolean anyBusy() {
-        return front_left.isBusy() || front_right.isBusy() || back_left.isBusy() || back_right.isBusy();
+    private boolean allWithin(int flT, int frT, int blT, int brT, int tol) {
+        return withinTolerance(flT, front_left.getCurrentPosition(), tol)
+            && withinTolerance(frT, front_right.getCurrentPosition(), tol)
+            && withinTolerance(blT, back_left.getCurrentPosition(), tol)
+            && withinTolerance(brT, back_right.getCurrentPosition(), tol);
+    }
+
+    private boolean withinTolerance(int target, int current, int tolTicks) {
+        return Math.abs(target - current) <= tolTicks;
+    }
+
+    // distance-based timeout helper (this is the one you were calling)
+    private double getTimeout(double inches) {
+        return Math.max(1.0, (Math.abs(inches) / 12.0) * TIMEOUT_S_PER_FOOT);
     }
 
     private long now() { return System.currentTimeMillis(); }
