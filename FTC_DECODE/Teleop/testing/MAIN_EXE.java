@@ -7,21 +7,17 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 @TeleOp(name = "MAIN_EXE", group = "TeleOp")
 public class MAIN_EXE extends OpMode {
     // Drive train motors
-    private DcMotor front_left;
-    private DcMotor front_right;
-    private DcMotor back_left;
-    private DcMotor back_right;
+    private DcMotor front_left, front_right, back_left, back_right;
 
     // Live trim for all motors except back_left (BL = reference)
     private float otherGain = 0.94f;       // scales FL/FR/BR; BL stays 1.00
     private boolean trimDebounce = false;  // prevents repeat on held D-pad
 
-    // Gamepad control variables
+    // Gamepad
     private float leftStickX, leftStickY, rightStickX, leftTrigger, rightTrigger;
-    private boolean leftBump, rightBump, leftStickDown, buttonX, buttonY, buttonA, buttonB;
-    private boolean dpadUp, dpadDown, dpadLeft, dpadRight;
+    private boolean leftStickDown, buttonX, dpadUp, dpadDown;
 
-    // Per-wheel power
+    // Mecanum mix
     private final float[] power = new float[4];
 
     // Speed toggle
@@ -47,7 +43,7 @@ public class MAIN_EXE extends OpMode {
         front_right.setDirection(DcMotor.Direction.REVERSE);
         back_right.setDirection(DcMotor.Direction.REVERSE);
 
-        // coast on zero power (your original choice)
+        // coast on zero power
         front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -57,13 +53,13 @@ public class MAIN_EXE extends OpMode {
     @Override
     public void loop() {
         // sticks/buttons
-        leftStickY   = gamepad1.left_stick_y;
-        leftStickX   = gamepad1.left_stick_x;
-        rightStickX  = gamepad1.right_stick_x;
-        leftStickDown= gamepad1.left_stick_button;
-
-        dpadUp   = gamepad1.dpad_up;
-        dpadDown = gamepad1.dpad_down;
+        leftStickY    = gamepad1.left_stick_y;
+        leftStickX    = gamepad1.left_stick_x;
+        rightStickX   = gamepad1.right_stick_x;
+        leftStickDown = gamepad1.left_stick_button;
+        dpadUp        = gamepad1.dpad_up;
+        dpadDown      = gamepad1.dpad_down;
+        buttonX       = gamepad1.x;  // optional reset
 
         // deadzones
         if (Math.abs(leftStickY)  < deadzone) leftStickY  = 0;
@@ -81,11 +77,14 @@ public class MAIN_EXE extends OpMode {
         // live trim: D-pad up/down -> ±1% for FL/FR/BR, BL unchanged
         if ((dpadUp || dpadDown) && !trimDebounce) {
             otherGain += dpadUp ? 0.01f : -0.01f;
-            if (otherGain < 0.80f) otherGain = 0.80f;   // sane bounds
+            if (otherGain < 0.80f) otherGain = 0.80f;   // sane bounds (multiplier)
             if (otherGain > 1.10f) otherGain = 1.10f;
             trimDebounce = true;
         }
         if (!dpadUp && !dpadDown) trimDebounce = false;
+
+        // optional: quick reset to 1.00
+        if (buttonX) otherGain = 1.00f;
 
         // mecanum mix: fwd/back, strafe, rotate
         power[0] = leftStickY - leftStickX - rightStickX; // FL
@@ -93,21 +92,29 @@ public class MAIN_EXE extends OpMode {
         power[2] = leftStickY + leftStickX - rightStickX; // BL
         power[3] = leftStickY - leftStickX + rightStickX; // BR
 
-        // normalize
+        // normalize base mix to [-1,1]
         max = Math.abs(power[0]);
         for (int i = 1; i < power.length; i++) if (Math.abs(power[i]) > max) max = Math.abs(power[i]);
         if (max > 1) for (int i = 0; i < power.length; i++) power[i] /= max;
 
-        // apply (trim only FL/FR/BR)
-        front_left.setPower (power[0] * otherGain * speedMultiplier);
-        front_right.setPower(power[1] * otherGain * speedMultiplier);
-        back_left.setPower  (power[2] * 1.00f     * speedMultiplier); // BL reference
-        back_right.setPower (power[3] * otherGain * speedMultiplier);
+        // apply trim (FL/FR/BR scaled, BL is reference), then CLIP to [-1,1]
+        double fl = clip(power[0] * otherGain * speedMultiplier, -1, 1);
+        double fr = clip(power[1] * otherGain * speedMultiplier, -1, 1);
+        double bl = clip(power[2] * 1.00f     * speedMultiplier, -1, 1); // BL unchanged
+        double br = clip(power[3] * otherGain * speedMultiplier, -1, 1);
+
+        front_left.setPower(fl);
+        front_right.setPower(fr);
+        back_left.setPower(bl);
+        back_right.setPower(br);
 
         // HUD
         telemetry.addData("Trim otherGain (FL/FR/BR)", "%.2f", otherGain);
         telemetry.addData("Slow", slowMode ? "0.6x" : "1.0x");
-        telemetry.update();   // <— make sure telemetry shows
+        telemetry.update();
+    }
+
+    private static double clip(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
     }
 }
-
