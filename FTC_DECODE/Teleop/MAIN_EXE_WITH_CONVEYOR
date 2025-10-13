@@ -1,0 +1,148 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "MAIN_EXE_WITH_CONVEYOR", group = "TeleOp")
+public class MAIN_EXE_WITH_CONVEYOR extends OpMode {
+    // Drive motors
+    private DcMotor front_left, front_right, back_left, back_right;
+
+    // Subsystem motors
+    private DcMotor intakeHarvester; // hold A/Y
+    private DcMotor conveyor;        // toggle X/B
+
+    // Gains
+    private static final float OTHER_GAIN = 0.94f;
+
+    // Sticks
+    private float leftStickX, leftStickY, rightStickX;
+
+    // Speed toggle
+    private boolean slowMode = false;
+    private boolean leftStickDownPrev = false;
+    private float speedMultiplier = 1.0f;
+
+    // Toggles (edge-detect) for conveyor
+    private boolean xPrev = false;
+    private boolean bPrev = false;
+
+    // Current conveyor power (starts 0.0)
+    private double conveyorPower = 0.0;
+
+    // Deadzone
+    private static final float DEADZONE = 0.1f;
+
+    @Override
+    public void init() {
+        telemetry.addData("Status", "Initialized (With Conveyor)");
+
+        front_left  = hardwareMap.get(DcMotor.class, "front_left");
+        front_right = hardwareMap.get(DcMotor.class, "front_right");
+        back_left   = hardwareMap.get(DcMotor.class, "back_left");
+        back_right  = hardwareMap.get(DcMotor.class, "back_right");
+
+        intakeHarvester = hardwareMap.get(DcMotor.class, "intakeHarvester");
+        conveyor        = hardwareMap.get(DcMotor.class, "conveyor");
+
+        // directions
+        front_left.setDirection(DcMotor.Direction.FORWARD);
+        back_left.setDirection(DcMotor.Direction.FORWARD);
+        front_right.setDirection(DcMotor.Direction.REVERSE);
+        back_right.setDirection(DcMotor.Direction.REVERSE);
+
+        intakeHarvester.setDirection(DcMotor.Direction.FORWARD); // flip if needed
+        conveyor.setDirection(DcMotor.Direction.FORWARD);        // flip if needed
+
+        // zero-power behavior
+        front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        intakeHarvester.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        conveyor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        // start off
+        intakeHarvester.setPower(0.0);
+        conveyor.setPower(0.0);
+
+        // Optional run modes:
+        // conveyor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        // intakeHarvester.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+
+    @Override
+    public void loop() {
+        // ===== Drive =====
+        leftStickY  = gamepad1.left_stick_y;
+        leftStickX  = gamepad1.left_stick_x;
+        rightStickX = gamepad1.right_stick_x;
+
+        if (Math.abs(leftStickY)  < DEADZONE) leftStickY  = 0;
+        if (Math.abs(leftStickX)  < DEADZONE) leftStickX  = 0;
+        if (Math.abs(rightStickX) < DEADZONE) rightStickX = 0;
+
+        boolean leftStickDown = gamepad1.left_stick_button;
+        if (leftStickDown && !leftStickDownPrev) slowMode = !slowMode;
+        leftStickDownPrev = leftStickDown;
+        speedMultiplier = slowMode ? 0.6f : 1.0f;
+
+        float fl = leftStickY - leftStickX - rightStickX;
+        float fr = leftStickY + leftStickX + rightStickX;
+        float bl = leftStickY + leftStickX - rightStickX;
+        float br = leftStickY - leftStickX + rightStickX;
+
+        float max = Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
+                             Math.max(Math.abs(bl), Math.abs(br)));
+        if (max > 1.0f) { fl /= max; fr /= max; bl /= max; br /= max; }
+
+        double pfl = clip(fl * OTHER_GAIN * speedMultiplier, -1, 1);
+        double pfr = clip(fr * OTHER_GAIN * speedMultiplier, -1, 1);
+        double pbl = clip(bl * 1.00f      * speedMultiplier, -1, 1);
+        double pbr = clip(br * OTHER_GAIN * speedMultiplier, -1, 1);
+
+        front_left.setPower(pfl);
+        front_right.setPower(pfr);
+        back_left.setPower(pbl);
+        back_right.setPower(pbr);
+
+        // ===== IntakeHarvester (hold-to-run on A/Y) =====
+        double intakePower = 0.0;
+        if (gamepad1.a) {
+            intakePower = 1.0;
+        } else if (gamepad1.y) {
+            intakePower = -1.0;
+        } else {
+            intakePower = 0.0;
+        }
+        intakeHarvester.setPower(intakePower);
+
+        // ===== Conveyor (toggle on X/B) =====
+        // X toggles between +1.0 and 0.0
+        boolean xNow = gamepad1.x;
+        if (xNow && !xPrev) {
+            conveyorPower = (conveyorPower == 1.0) ? 0.0 : 1.0;
+        }
+        xPrev = xNow;
+
+        // B toggles between -1.0 and 0.0
+        boolean bNow = gamepad1.b;
+        if (bNow && !bPrev) {
+            conveyorPower = (conveyorPower == -1.0) ? 0.0 : -1.0;
+        }
+        bPrev = bNow;
+
+        // This allows instant jump from -1.0 to +1.0 (press X) and +1.0 to -1.0 (press B)
+        conveyor.setPower(conveyorPower);
+
+        telemetry.addData("Mode", slowMode ? "SLOW (0.6x)" : "NORMAL (1.0x)");
+        telemetry.addData("Intake", "%.1f  (A=+1 hold, Y=-1 hold)", intakePower);
+        telemetry.addData("Conveyor", "%.1f  (X toggles +1/0, B toggles -1/0)", conveyorPower);
+        telemetry.update();
+    }
+
+    private static double clip(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+}
