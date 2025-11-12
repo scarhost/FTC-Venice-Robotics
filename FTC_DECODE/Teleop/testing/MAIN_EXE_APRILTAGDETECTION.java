@@ -32,7 +32,7 @@ public class MAIN_EXE extends OpMode {
     private static final float SLOW_MULT = 0.60f;
     private static final float NORM_MULT = 1.00f;
 
-    private static final double CONVEYOR_SPEED = 0.60; // cap
+    private static final double CONVEYOR_SPEED = 0.40; // cap
 
     // ===== State =====
     private float leftStickX, leftStickY, rightStickX;
