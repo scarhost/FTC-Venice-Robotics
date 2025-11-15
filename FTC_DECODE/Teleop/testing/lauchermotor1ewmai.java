@@ -55,8 +55,8 @@ public class MAIN_EXE extends OpMode {
 
         // Intake reversed (from earlier fix), others normal
         intakeHarvester.setDirection(DcMotorSimple.Direction.REVERSE);
-        conveyor.setDirection(DcMotorSimple.Direction.FORWARD);
-        launcher.setDirection(DcMotorSimple.Direction.FORWARD); // flip if it spins the wrong way
+        conveyor.setDirection(DcMotorSimple.Direction.REVERSE);
+        launcher.setDirection(DcMotorSimple.Direction.REVERSE); // flip if it spins the wrong way
 
         // Brake when zero power
         front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -81,7 +81,7 @@ public class MAIN_EXE extends OpMode {
 
         // ========= DRIVE =========
         // NOTE: minus sign so pushing stick forward = robot forward
-        float y  = -dead(gamepad1.left_stick_y);
+        float y  = dead(gamepad1.left_stick_y);
         float x  =  dead(gamepad1.left_stick_x);
         float rx =  dead(gamepad1.right_stick_x);
 
